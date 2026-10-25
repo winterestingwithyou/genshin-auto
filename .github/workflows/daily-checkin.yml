@@ -1,0 +1,58 @@
+name: Genshin Daily Check-in
+
+on:
+  schedule:
+    # Run daily at 8:00 AM UTC (adjust timezone as needed)
+    - cron: '0 0 * * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  daily-checkin:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+    - name: Checkout repository (main branch)
+      uses: actions/checkout@v4
+      with:
+        ref: main
+        fetch-depth: 0
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: Setup logs branch and fetch existing logs
+      run: |
+        cd utils
+        python logs_manager.py fetch "genshin-checkin.log"
+        
+    - name: Run daily check-in
+      env:
+        UID: ${{ secrets.UID }}
+        REGION: ${{ secrets.REGION }}
+        COOKIE: ${{ secrets.COOKIE }}
+        DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      run: |
+        cd checkin
+        python daily.py
+        
+    - name: Commit and push logs to logs branch
+      run: |
+        cd utils
+        python logs_manager.py commit "genshin-checkin.log"
